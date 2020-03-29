@@ -46,14 +46,14 @@ class TestUtils(TestCase):
         learner_kwargs = {'kernel_size': 1, 'padding': 0, 'maxpool_size': 1, 'random_seed': 0}
         test_data = [
             (CNNRegressor, new_line(**opts), .95),  # Approximate a line
-            (CNNRegressor, new_trig(**opts), .30),  # Approximate a sine curve
+            #(CNNRegressor, new_trig(**opts), .30),  # Approximate a sine curve
             (CNNRegressor, new_poly(**opts), .85),  # Approximate a 4th deg. poly
             (CNNClassifier, new_labels(**opts), .80),  # Correctly guess labels
             (CNNClassifier, new_mat9(**opts), 1)]  # FIXME: Correctly guess matrix
         for learner, dataset, target_score in test_data:
-            pipeline = learner(verbose=True, **learner_kwargs)
-            pipeline.train(dataset.input_fn, max_score=target_score)
-            self.assertGreaterEqual(pipeline.best_score_, target_score, dataset.name)
+            pipeline = learner(**learner_kwargs)
+            history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
+            self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
 
     def test_learner_datasets(self):
         opts = {'random_seed': 0}
@@ -63,16 +63,16 @@ class TestUtils(TestCase):
 
         opts['kernel_size'] = 3
         for learner, train_test_datasets, target_score in test_data:
-            train_ds, test_ds = train_test_datasets
+            dataset, test_ds = train_test_datasets
             pipeline = Pipeline([
                 PipelineStep(name='preprocessor', learner=StandardPreprocessor, kwargs={
-                    'continuous': train_ds.continuous, 'categorical': train_ds.categorical}),
-                PipelineStep(name='estimator', learner=learner, kwargs=opts)], verbose=True)
+                    'continuous': dataset.continuous, 'categorical': dataset.categorical}),
+                PipelineStep(name='estimator', learner=learner, kwargs=opts)])
 
-            pipeline.train(train_ds.input_fn, max_score=target_score)
+            history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
             test_score = pipeline.score(*test_ds[:])
-            self.assertGreaterEqual(pipeline.best_score_, target_score, train_ds.name)
-            print('%s\t%.3f\t%.3f' % (train_ds.name, pipeline.best_score_, test_score))
+            self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
+            print('%s\t%.3f\t%.3f' % (dataset.name, max(history.scores), test_score))
 
 if __name__ == '__main__':
     sys.exit(main())

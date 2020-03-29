@@ -55,11 +55,11 @@ class TestUtils(TestCase):
                 dataset_ = dataset(**opts)
                 tmp.append(dataset_.input_fn()[0].tolist())
                 pipeline = learner(verbose=False, **opts)
-                pipeline.train(dataset_.input_fn, max_steps=100, callback=step_callback)
+                history = pipeline.train(dataset_.input_fn, max_steps=100, callback=step_callback)
 
                 X_list.append(X_tmp)
                 y_list.append(y_tmp)
-                scores_list.append(scores + [pipeline.best_score_])
+                scores_list.append(scores + [max(history.scores)])
 
             for i in range(1, trials):
                 self.assertListEqual(tmp[0], tmp[i])

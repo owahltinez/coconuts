@@ -45,9 +45,9 @@ class TestUtils(TestCase):
             (learners_classifiers, new_labels(**opts), .80),  # Correctly guess labels
             (learners_classifiers, new_mat9(**opts), 1)]  # FIXME: Correctly guess matrix
         for learners, dataset, target_score in test_data:
-            learner = BruteForce(dataset, learners, n_jobs=4, verbose=False)
-            learner.train(dataset.input_fn, max_score=target_score, progress=True)
-            self.assertGreaterEqual(learner.best_score_, target_score, dataset.name)
+            pipeline = BruteForce(dataset, learners, n_jobs=4)
+            history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
+            self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
 
     def test_learner_datasets(self):
         opts = {'random_seed': 0}
@@ -60,12 +60,12 @@ class TestUtils(TestCase):
             (learners_classifiers, load_titanic(**opts), .75)]  # Titanic dataset
 
         for learners, train_test_datasets, target_score in test_data:
-            train_ds, test_ds = train_test_datasets
-            learner = BruteForce(train_ds, learners, n_jobs=4, verbose=False)
-            learner.train(train_ds.input_fn, max_score=target_score, progress=True)
-            test_score = learner.score(*test_ds[:])
-            self.assertGreaterEqual(learner.best_score_, target_score, train_ds.name)
-            print('%s\t%.3f\t%.3f' % (train_ds.name, learner.best_score_, test_score))
+            dataset, test_ds = train_test_datasets
+            pipeline = BruteForce(dataset, learners, n_jobs=4)
+            history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
+            test_score = pipeline.score(*test_ds[:])
+            self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
+            print('%s\t%.3f\t%.3f' % (dataset.name, max(history.scores), test_score))
 
 if __name__ == '__main__':
     sys.exit(main())
