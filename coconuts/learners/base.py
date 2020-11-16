@@ -1,12 +1,11 @@
-''' Streaming Estimators Module '''
+""" Streaming Estimators Module """
 
 import traceback
 import warnings
 from enum import Enum, auto
-from typing import Any, List
-
+from typing import Any, Iterable, List, Tuple
 import numpy
-from numpy.random import RandomState
+
 import torch
 from torch import nn
 from torch import cat as tensor_concat  # pylint: disable=no-name-in-module
@@ -19,11 +18,13 @@ from bananas.core.learner import SupervisedLearner
 from bananas.core.mixins import BaseClassifier, BaseRegressor, HighDimensionalMixin
 from bananas.data.dataset import DataSet
 from bananas.statistics.loss import LossFunction
+from bananas.statistics.random import RandomState
 from bananas.statistics.scoring import ScoringFunction
 from bananas.utils.arrays import shape_of_array
 from bananas.utils.constants import DTYPE_FLOAT, DTYPE_INT
 
 from ..utils.flatten import Flatten
+
 
 def loss_function_instance(loss_function: LossFunction) -> nn.Module:
     return {
@@ -32,30 +33,33 @@ def loss_function_instance(loss_function: LossFunction) -> nn.Module:
         LossFunction.CROSS_ENTROPY: nn.CrossEntropyLoss(),
         # FIXME: BCE Loss produces a crash due to mismatching shapes. It appears that BCE expects
         # target to be two columns like [0,1] or [1,0], not just one like [True] or [False]
-        LossFunction.BINARY_CROSS_ENTROPY: nn.BCELoss()
+        LossFunction.BINARY_CROSS_ENTROPY: nn.BCELoss(),
     }.get(loss_function)
 
 
 class ModelMode(Enum):
-    ''' Enum describing model operation mode '''
+    """ Enum describing model operation mode """
+
     TRAINING = auto()
     EVALUATION = auto()
 
 
 # pylint: disable=too-many-instance-attributes
 class BaseNNLearner(SupervisedLearner):
-    ''' Base learner class that all supervised learners should inherit from '''
+    """ Base learner class that all supervised learners should inherit from """
 
     def __init__(
-            self,
-            learning_rate: float = .001,
-            loss_function: LossFunction = None,
-            random_seed: int = 0,
-            verbose: bool = False,
-            **kwargs):
+        self,
+        learning_rate: float = 0.001,
+        loss_function: LossFunction = None,
+        random_seed: int = 0,
+        verbose: bool = False,
+        **kwargs,
+    ):
         # Pass forward all parameters to this constructor
         super().__init__(
-            learning_rate=learning_rate, random_seed=random_seed, verbose=verbose, **kwargs)
+            learning_rate=learning_rate, random_seed=random_seed, verbose=verbose, **kwargs
+        )
 
         # Parameters passed as argument to constructor
         self.learning_rate = learning_rate
@@ -68,7 +72,7 @@ class BaseNNLearner(SupervisedLearner):
         self._flattener = Flatten()
 
         # Initialize random number generator
-        self.print('Initializing RNG with seed: %r' % random_seed)
+        self.print("Initializing RNG with seed: %r" % random_seed)
         self._rng = RandomState(random_seed)
         torch.manual_seed(random_seed)
         if self._is_cuda:
@@ -81,12 +85,17 @@ class BaseNNLearner(SupervisedLearner):
             if isinstance(self, BaseClassifier):
                 loss_function = LossFunction.CROSS_ENTROPY
         self.loss_function = loss_function_instance(loss_function)
-        if self._is_cuda: self.loss_function = self.loss_function.cuda()
-        self.print('Initialized loss function %s [%s]' %
-                 (loss_function, self.loss_function.__class__.__name__))
+        if self._is_cuda:
+            self.loss_function = self.loss_function.cuda()
+        self.print(
+            "Initialized loss function %s [%s]"
+            % (loss_function, self.loss_function.__class__.__name__)
+        )
 
         # Reset model whenever output shape changes
-        def _output_changed_callback(change_map: ChangeMap): self.model_ = None
+        def _output_changed_callback(change_map: ChangeMap):
+            self.model_ = None
+
         self.add_output_shape_changed_callback(_output_changed_callback)
 
         # Declare variables initialized during fitting to aid type-checking
@@ -94,19 +103,26 @@ class BaseNNLearner(SupervisedLearner):
         self.optimizer_: torch.optim.Optimizer = None
 
     def tensor_to_ndarray(self, tensor: Tensor):
-        ''' Convert a tensor type to a numpy.float64 ndarray '''
-        if self._is_cuda: tensor = tensor.cpu()
+        """ Convert a tensor type to a numpy.float64 ndarray """
+        if self._is_cuda:
+            tensor = tensor.cpu()
         return tensor.numpy().astype(numpy.float64)
 
     def input_to_tensor(self, arr, flatten: bool = True) -> Tensor:
-        '''
+        """
         Convert input n-dim array to tensor and copy to GPU if available. This function also
         transposes input n-dim array from column-first to sample-first shape.
-        '''
+        """
         # For matrix multiplication performance, we actually need X transposed back to sample-first
         # We hope for an NN framework that supports our columnar approach to input one day...
-        assert all([shape_of_array(col)[1:] == shape_of_array(arr[0])[1:] for col in arr[1:]]), \
-            'Consistent shape required for all input features. Found %r' % shape_of_array(arr)
+        expected_shape = shape_of_array(arr[0])[1:]
+        for col in arr[1:]:
+            feature_shape = shape_of_array(col)[1:]
+            assert expected_shape == feature_shape, (
+                "Consistent shape required for all input features. "
+                f"Found {feature_shape}, expected {expected_shape}, input {shape_of_array(arr)}."
+            )
+
         arr = numpy.asarray(arr, dtype=DTYPE_FLOAT[0])
         if arr.ndim <= 2:
             arr = numpy.transpose(arr)
@@ -118,8 +134,8 @@ class BaseNNLearner(SupervisedLearner):
             tensor = self._flattener(tensor)
         return tensor
 
-    def target_to_tensor(self, arr, flatten: bool = True) -> Tensor:
-        ''' Convert target n-dim array to tensor and copy to GPU if available '''
+    def target_to_tensor(self, arr) -> Tensor:
+        """ Convert target n-dim array to tensor and copy to GPU if available """
         if not isinstance(arr, numpy.ndarray):
             arr = numpy.array(arr)
 
@@ -128,37 +144,40 @@ class BaseNNLearner(SupervisedLearner):
         elif isinstance(self, BaseClassifier):
             tensor = from_numpy(arr.astype(DTYPE_INT[0])).long()
         else:
-            raise RuntimeError('Unknown learner type: %r' % type(self))
+            raise RuntimeError("Unknown learner type: %r" % type(self))
 
         if self._is_cuda:
             tensor = tensor.cuda()
-        if flatten and isinstance(self, BaseRegressor):
-            tensor = self._flattener(tensor)
+
+        # Ensure the target is not a flat array
+        if len(arr.shape) < 2:
+            tensor = tensor.view(-1, 1)
+
         return tensor
 
-    def _init_model(self, input_shape: tuple):
-        '''
+    def _init_model(self, input_shape: Tuple):
+        """
         Internal function used to initialize model using user-supplied `init_model()` while setting
         a number of internal variables.
-        '''
+        """
         # Update I/O dimensions -- output_shape_ is set by subclass
-        self.input_shape_ = input_shape
-        self.print('Setting I/O dimensions to [%r x %r]' %
-                   (self.input_shape_, self.output_shape_))
+        self.print(f"Setting I/O dimensions to [{input_shape} x {self.output_shape_}]")
 
         # Initialize new network model and set training mode
-        self.model_ = self.init_model(self.input_shape_, self.output_shape_)
-        if self._is_cuda: self.model_ = self.model_.cuda()
+        self.model_ = self.init_model(input_shape, self.output_shape_)
+        if self._is_cuda:
+            self.model_ = self.model_.cuda()
         self.set_mode(ModelMode.TRAINING)
 
         # Clear out optimizer to make sure it gets re-initialized
         self.optimizer_ = None
 
     def set_mode(self, mode: ModelMode):
-        ''' Sets the operating mode of the underlying model '''
+        """ Sets the operating mode of the underlying model """
 
         # Early exit: model is not initialized or mode has not changed
-        if not self.model_ or mode == self._mode: return
+        if not self.model_ or mode == self._mode:
+            return
 
         if mode == ModelMode.TRAINING:
             self.model_.train()
@@ -167,10 +186,8 @@ class BaseNNLearner(SupervisedLearner):
 
         self._mode = mode
 
-    def fit(self, X, y):
-        ''' Fit input to model incrementally '''
-        self.set_mode(ModelMode.TRAINING)
-        X, y = self.check_X_y(X, y)
+    def check_X_y(self, X: Iterable[Iterable], y: Iterable) -> Tuple[Iterable, Iterable]:
+        X, y = super().check_X_y(X, y)
 
         # Convert batch inputs to tensors
         X_tensor = self.input_to_tensor(X)
@@ -178,40 +195,59 @@ class BaseNNLearner(SupervisedLearner):
 
         # Workaround: if it's a single sample, duplicate it; otherwise self.model_.forward() fails
         # TODO: Add test for single-sample input
-        single_sample = len(X_tensor) == 1
-        if single_sample:
+        if len(X_tensor) == 1:
             X_tensor = tensor_concat([X_tensor, X_tensor])
             y_tensor = tensor_concat([y_tensor, y_tensor])
 
+        return X_tensor, y_tensor
+
+    def fit(self, X, y):
+        """ Fit input to model incrementally """
+        self.set_mode(ModelMode.TRAINING)
+        X, y = self.check_X_y(X, y)
+
         # Initialize model by calling `init_model()` when the model has not been initialized
         if self.model_ is None:
-            self._init_model(tuple(X_tensor.size()[1:]))
+            # Input shape allows for multiple features and is in column-first order, but we only
+            # support one feature since Pytorch uses sample-first order. So take the input shape
+            # from the transformed tensor and ignore the internally recorded input shape.
+            self._init_model(X.size()[1:])
 
         # Initialize optimizer with our model parameters
         if self.optimizer_ is None:
             self.optimizer_ = torch.optim.SGD(
-                self.model_.parameters(), lr=self.learning_rate, momentum=.99)
-            self.print('Initialized optimizer [%s]' % (self.optimizer_.__class__.__name__))
+                self.model_.parameters(), lr=self.learning_rate, momentum=0.99
+            )
+            self.print("Initialized optimizer [%s]" % (self.optimizer_.__class__.__name__))
 
         # Tell user if model has not been initialized in `init_model()`
         if self.model_ is None:
-            raise RuntimeError('Model has not been initialized. You must return model in the '
-                               'overridden `init_model()` function')
+            raise RuntimeError(
+                "Model has not been initialized. You must return model in the "
+                "overridden `init_model()` function"
+            )
 
         # Forward pass
         self.optimizer_.zero_grad()
-        outputs = self.model_.forward(Variable(X_tensor))
+        outputs = self.model_.forward(Variable(X))
 
         # This fails if, for example, labels are not properly encoded
         try:
-            loss = self.loss_function(outputs, Variable(y_tensor))
-        except RuntimeError:
-            diag = {'class_name': self.__class__.__name__, 'loss_function': self.loss_function,
-                    'target_size': y_tensor.size(), 'inputs_size': X_tensor.size(),
-                    'outputs_size': outputs.size()}
-            warnings.warn('Loss function failed: %r. \n%r' %
-                          (diag, traceback.format_exc()), RuntimeWarning)
-            return self
+            # Classifier data may be one-hot encoded so we need to squeeze the tensor to get 1D
+            # because the loss functions used for classifiers do not support >1D.
+            if isinstance(self, BaseNNClassifier):
+                y = y.squeeze()
+            loss = self.loss_function(outputs, Variable(y))
+        except RuntimeError as exc:
+            diag = {
+                "class_name": self.__class__.__name__,
+                "loss_function": self.loss_function,
+                "target_size": y.size(),
+                "inputs_size": X.size(),
+                "outputs_size": outputs.size(),
+            }
+            warnings.warn(f"Loss function failed: {diag}.", RuntimeWarning)
+            raise exc
 
         # Backpropagation and update weights
         loss.backward()
@@ -220,32 +256,38 @@ class BaseNNLearner(SupervisedLearner):
         return self
 
     def predict(self, X) -> Tensor:
-        self.check_attributes('input_shape_', 'model_')
+        self.check_attributes("input_shape_", "model_")
         X = self.check_X(X)
         # Convert input to tensor type
         X_tensor = self.input_to_tensor(X)
         # Workaround: if it's a single sample, duplicate it; otherwise self.model_.forward() fails
         single_sample = len(X_tensor) == 1
-        if single_sample: X_tensor = tensor_concat([X_tensor, X_tensor])
+        if single_sample:
+            X_tensor = tensor_concat([X_tensor, X_tensor])
         # Do a forward pass to compute prediction
         pred: Tensor = self.model_.forward(Variable(X_tensor)).data
         # Convert prediction to numpy array
         pred = self.tensor_to_ndarray(pred)
         # Workaround: if it's a single sample, return only the first prediction
-        if single_sample: pred = pred[0:1]
+        if single_sample:
+            pred = pred[0:1]
+        # If the input target was a 1D list, flatten output
+        input_shape = next(iter(self.input_shape_.values()))
+        if len(input_shape) == 0:
+            pred = pred.reshape(-1)
 
         return pred
 
-    def score(self, X, y):
+    def score(self, X, y) -> float:
         self.set_mode(ModelMode.EVALUATION)
         return super().score(X, y)
 
     def init_model(self, input_shape: tuple, output_shape: tuple) -> nn.Module:
-        ''' Initialize model function. Must be overriden by inheriting classes '''
+        """ Initialize model function. Must be overridden by inheriting classes """
         raise NotImplementedError()
 
     def on_input_shape_changed(self, change_map: ChangeMap = None):
-        self.print('Input changed: %r' % change_map)
+        self.print("Input changed: %r" % change_map)
         # FIXME: this strategy fails if input shape changes during predict
         self.input_dtype_ = None
         self.input_shape_ = None
@@ -253,17 +295,18 @@ class BaseNNLearner(SupervisedLearner):
 
 
 class BaseNNClassifier(BaseNNLearner, BaseClassifier):
-    ''' Specialization of the base learning class used for classification problems '''
+    """ Specialization of the base learning class used for classification problems """
 
     def __init__(
-            self,
-            classes: List[Any] = None,
-            learning_rate: float = .001,
-            scoring_function: ScoringFunction = ScoringFunction.ACCURACY,
-            loss_function: LossFunction = LossFunction.CROSS_ENTROPY,
-            random_seed: int = 0,
-            verbose: bool = False,
-            **kwargs):
+        self,
+        classes: List[Any] = None,
+        learning_rate: float = 0.001,
+        scoring_function: ScoringFunction = ScoringFunction.ACCURACY,
+        loss_function: LossFunction = LossFunction.CROSS_ENTROPY,
+        random_seed: int = 0,
+        verbose: bool = False,
+        **kwargs,
+    ):
 
         # We can't call super().__init__() because it failes due to multiple argument `classes` (?)
         BaseNNLearner.__init__(
@@ -274,11 +317,9 @@ class BaseNNClassifier(BaseNNLearner, BaseClassifier):
             loss_function=loss_function,
             random_seed=random_seed,
             verbose=verbose,
-            **kwargs)
-        BaseClassifier.__init__(
-            self,
-            classes=classes,
-            scoring_function=scoring_function)
+            **kwargs,
+        )
+        BaseClassifier.__init__(self, classes=classes, scoring_function=scoring_function)
 
     def predict_proba(self, X):
         probs = BaseNNLearner.predict(self, X)
@@ -293,20 +334,21 @@ class BaseNNClassifier(BaseNNLearner, BaseClassifier):
 
     @staticmethod
     def hyperparameters(dataset: DataSet):
-        return {'learning_rate': [.001]}
+        return {"learning_rate": [0.001]}
 
 
 class BaseNNRegressor(BaseNNLearner, BaseRegressor):
-    ''' Specialization of the base learning class used for regression problems '''
+    """ Specialization of the base learning class used for regression problems """
 
     def __init__(
-            self,
-            learning_rate: float = .001,
-            scoring_function: ScoringFunction = ScoringFunction.R2,
-            loss_function: LossFunction = LossFunction.L1,
-            random_seed: int = 0,
-            verbose: bool = False,
-            **kwargs):
+        self,
+        learning_rate: float = 0.001,
+        scoring_function: ScoringFunction = ScoringFunction.R2,
+        loss_function: LossFunction = LossFunction.L1,
+        random_seed: int = 0,
+        verbose: bool = False,
+        **kwargs,
+    ):
         BaseNNLearner.__init__(
             self,
             learning_rate=learning_rate,
@@ -314,10 +356,9 @@ class BaseNNRegressor(BaseNNLearner, BaseRegressor):
             scoring_function=scoring_function,
             random_seed=random_seed,
             verbose=verbose,
-            **kwargs)
-        BaseRegressor.__init__(
-            self,
-            scoring_function=scoring_function)
+            **kwargs,
+        )
+        BaseRegressor.__init__(self, scoring_function=scoring_function)
 
     def predict(self, X):
-        return BaseNNLearner.predict(self, X).reshape(-1)
+        return BaseNNLearner.predict(self, X)

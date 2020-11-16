@@ -11,12 +11,10 @@ class BaseLinearModel(BaseNNLearner):
     """
 
     def init_model(self, input_shape: tuple, output_shape: tuple):
-        assert len(output_shape) == 1, "%s supports only 1D shapes, found %r x %r" % (
-            self.__class__.__name__,
-            input_shape,
-            output_shape,
-        )
-        # return nn.Sequential(Flatten(), nn.Linear(input_shape[0], output_shape[0]))
+        class_name = self.__class__.__name__
+        assert (
+            len(input_shape) == 1 and len(output_shape) == 1
+        ), f"{class_name} supports only 1D shapes, found {input_shape} x {output_shape}"
         return nn.Linear(input_shape[0], output_shape[0])
 
 
