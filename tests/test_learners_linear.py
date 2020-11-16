@@ -9,9 +9,10 @@ from unittest import TestCase, main
 
 from bananas.core.pipeline import Pipeline, PipelineStep
 from bananas.sampledata.local import load_boston, load_titanic
-from bananas.sampledata.synthetic import new_labels, new_line, new_mat9, new_poly
+from bananas.sampledata.synthetic import new_labels, new_line, new_3x3, new_poly
 from bananas.preprocessing.standard import StandardPreprocessor
 from bananas.testing.learners import test_learner
+import numpy
 
 from coconuts.learners.linear import LinearRegressor, LogisticRegression
 
@@ -42,24 +43,24 @@ class TestUtils(TestCase):
             self.assertTrue(test_learner(learner, *learner_args, **learner_kwargs))
 
     def test_learner_synthetic(self):
-        opts = {"random_seed": 0}
+        opts = dict(random_seed=0)
         test_data = [
             (LinearRegressor, new_line(**opts), 0.95),  # Approximate a line
-            # (LinearRegressor, new_poly(**opts), .55),  # Approximate a 4th deg. poly
-            # (LogisticRegression, new_labels(**opts), .50),  # Correctly guess labels
-            (LogisticRegression, new_mat9(**opts), 1),
-        ]  # Correctly guess labels
+            (LogisticRegression, new_labels(**opts), 0.55),  # Correctly guess labels
+            (LinearRegressor, new_poly(**opts), 0.85),  # Approximate a 4th deg. poly
+            (LinearRegressor, new_3x3(**opts), 0.95),  # 3x3 fuzzy matrix
+        ]
         for learner, dataset, target_score in test_data:
-            pipeline = learner(**opts)
+            pipeline = learner(verbose=True, **opts)
             history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
             self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
 
     def test_learner_datasets(self):
-        opts = {"random_seed": 0}
+        opts = dict(random_seed=0)
         test_data = [
             (LinearRegressor, load_boston(**opts), 0.45),  # Boston housing dataset
-            (LogisticRegression, load_titanic(**opts), 0.75),
-        ]  # Titanic dataset
+            (LogisticRegression, load_titanic(**opts), 0.75),  # Titanic dataset
+        ]
 
         for learner, train_test_datasets, target_score in test_data:
             dataset, test_ds = train_test_datasets

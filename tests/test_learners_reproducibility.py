@@ -6,8 +6,7 @@ import warnings
 from pstats import Stats
 from unittest import TestCase, main
 
-from bananas.sampledata.local import load_boston, load_titanic
-from bananas.sampledata.synthetic import new_labels, new_line, new_mat9, new_poly
+from bananas.sampledata.synthetic import new_labels, new_line, new_3x3, new_poly
 
 from coconuts.learners.linear import LinearRegressor, LogisticRegression
 
@@ -33,13 +32,14 @@ class TestUtils(TestCase):
 
     def test_learner_reproducibility_synthetic(self):
         trials = 10
-        opts = {"random_seed": 0}
+        opts = dict(random_seed=0)
 
         test_data = [
             (LinearRegressor, new_line),  # Approximate a line
             (LinearRegressor, new_poly),  # Approximate a 4th deg. poly
-            (LogisticRegression, new_labels),
-        ]  # Correctly guess labels
+            (LogisticRegression, new_labels),  # Correctly guess labels
+            (LinearRegressor, new_3x3),  # 3x3 fuzzy matrix
+        ]
 
         for learner, dataset in test_data:
             tmp = []
@@ -51,9 +51,9 @@ class TestUtils(TestCase):
 
                 def step_callback(step):
                     for x in step.X_test:
-                        X_tmp.append(x)
+                        X_tmp.append(x.tolist())
                     for y in step.y_test:
-                        y_tmp.append(y)
+                        y_tmp.append(y.tolist())
                     scores.append(step.score)
 
                 dataset_ = dataset(**opts)

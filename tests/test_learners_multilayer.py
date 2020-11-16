@@ -8,7 +8,7 @@ from unittest import TestCase, main
 
 from bananas.core.pipeline import Pipeline, PipelineStep
 from bananas.sampledata.local import load_boston, load_titanic
-from bananas.sampledata.synthetic import new_labels, new_line, new_mat9, new_poly, new_trig
+from bananas.sampledata.synthetic import new_labels, new_line, new_3x3, new_poly, new_trig
 from bananas.testing.learners import test_learner
 from bananas.preprocessing.standard import StandardPreprocessor
 
@@ -41,25 +41,25 @@ class TestUtils(TestCase):
             self.assertTrue(test_learner(learner, *learner_args, **learner_kwargs))
 
     def test_learner_synthetic(self):
-        opts = {"random_seed": 0}
+        opts = dict(random_seed=0)
         test_data = [
             (MLPRegressor, new_line(**opts), 0.95),  # Approximate a line
-            # (MLPRegressor, new_trig(**opts), .50),  # Approximate a sine curve
-            # (MLPRegressor, new_poly(**opts), .75),  # Approximate a 4th deg. poly
-            # (MLPClassifier, new_labels(**opts), .75),  # Correctly guess labels
-            (MLPClassifier, new_mat9(**opts), 1),
-        ]  # Correctly guess labels
+            (MLPRegressor, new_trig(**opts), 0.75),  # Approximate a sine curve
+            (MLPRegressor, new_poly(**opts), 0.75),  # Approximate a 4th deg. poly
+            (MLPClassifier, new_labels(**opts), 0.75),  # Correctly guess labels
+            (MLPRegressor, new_3x3(**opts), 0.90),  # 3x3 fuzzy matrix
+        ]
         for learner, dataset, target_score in test_data:
-            pipeline = learner(verbose=True, **opts)
-            history = pipeline.train(dataset.input_fn, max_score=target_score)
+            pipeline = learner(verbose=False, **opts)
+            history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
             self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
 
     def test_learner_datasets(self):
-        opts = {"random_seed": 0}
+        opts = dict(random_seed=0)
         test_data = [
             (MLPRegressor, load_boston(**opts), 0.85),  # Boston housing dataset
-            (MLPClassifier, load_titanic(**opts), 0.75),
-        ]  # Titanic dataset
+            (MLPClassifier, load_titanic(**opts), 0.75),  # Titanic dataset
+        ]
 
         for learner, train_test_datasets, target_score in test_data:
             dataset, test_ds = train_test_datasets

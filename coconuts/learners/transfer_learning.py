@@ -1,7 +1,7 @@
 """ Module Description """
 
 import copy
-from typing import Tuple
+from typing import Tuple, Union
 
 from torch import nn
 from torch import rand as random_tensor  # pylint: disable=no-name-in-module
@@ -27,7 +27,7 @@ class TransferLearningModel(BaseNNLearner):
 
     def __init__(
         self,
-        base_model: (BaseNNLearner, nn.Module),
+        base_model: Union[BaseNNLearner, nn.Module],
         discard_layer_count: int = 1,
         freeze_base_model: bool = True,
         learning_rate: float = 0.001,

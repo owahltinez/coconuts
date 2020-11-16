@@ -9,7 +9,7 @@ from unittest import TestCase, main
 
 from bananas.core.pipeline import Pipeline, PipelineStep
 from bananas.sampledata.local import load_boston, load_titanic
-from bananas.sampledata.synthetic import new_labels, new_line, new_mat9, new_poly, new_trig
+from bananas.sampledata.synthetic import new_labels, new_line, new_3x3, new_poly, new_trig
 from bananas.testing.learners import test_learner
 from bananas.preprocessing.standard import StandardPreprocessor
 
@@ -37,33 +37,33 @@ class TestUtils(TestCase):
 
     def test_learner_builtin(self):
         learner_args = []
-        learner_kwargs = {"kernel_size": 1, "padding": 0, "maxpool_size": 1}
+        learner_kwargs = dict(kernel_size=1, padding=0, maxpool_size=1)
         for learner in (CNNClassifier, CNNRegressor):
             self.assertTrue(test_learner(learner, *learner_args, **learner_kwargs))
 
     def test_learner_synthetic(self):
-        opts = {"random_seed": 0}
-        learner_kwargs = {"kernel_size": 1, "padding": 0, "maxpool_size": 1, "random_seed": 0}
+        opts = dict(random_seed=0)
+        learner_kwargs = dict(kernel_size=1, padding=0, maxpool_size=1, **opts)
         test_data = [
             (CNNRegressor, new_line(**opts), 0.95),  # Approximate a line
-            # (CNNRegressor, new_trig(**opts), .30),  # Approximate a sine curve
+            (CNNRegressor, new_trig(**opts), 0.60),  # Approximate a sine curve
             (CNNRegressor, new_poly(**opts), 0.85),  # Approximate a 4th deg. poly
             (CNNClassifier, new_labels(**opts), 0.80),  # Correctly guess labels
-            (CNNClassifier, new_mat9(**opts), 1),
-        ]  # FIXME: Correctly guess matrix
+            (CNNRegressor, new_3x3(**opts), 0.90),  # 3x3 fuzzy matrix
+        ]
         for learner, dataset, target_score in test_data:
-            pipeline = learner(**learner_kwargs)
+            pipeline = learner(verbose = False, **learner_kwargs)
             history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
             self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
 
     def test_learner_datasets(self):
-        opts = {"random_seed": 0}
+        opts = dict(random_seed=0)
         test_data = [
             (CNNRegressor, load_boston(**opts), 0.75),  # Boston housing dataset
-            (CNNClassifier, load_titanic(**opts), 0.75),
-        ]  # Titanic dataset
+            (CNNClassifier, load_titanic(**opts), 0.75),  # Titanic dataset
+        ]
 
-        opts["kernel_size"] = 3
+        learner_kwargs = dict(kernel_size=3, **opts)
         for learner, train_test_datasets, target_score in test_data:
             dataset, test_ds = train_test_datasets
             pipeline = Pipeline(
@@ -76,7 +76,7 @@ class TestUtils(TestCase):
                             "categorical": dataset.categorical,
                         },
                     ),
-                    PipelineStep(name="estimator", learner=learner, kwargs=opts),
+                    PipelineStep(name="estimator", learner=learner, kwargs=learner_kwargs),
                 ]
             )
 
