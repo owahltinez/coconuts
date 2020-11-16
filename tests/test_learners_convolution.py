@@ -1,7 +1,6 @@
 """ Test Convolution Module """
 
 import sys
-import time
 import cProfile
 import warnings
 from pstats import Stats
