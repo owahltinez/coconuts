@@ -1,4 +1,4 @@
-''' Test Convolution Module '''
+""" Test Convolution Module """
 
 import sys
 import time
@@ -17,12 +17,12 @@ from coconuts.learners.convolution import CNNClassifier, CNNRegressor
 
 # Show traceback for all warninngs
 from bananas.utils.misc import warn_with_traceback
+
 warnings.showwarning = warn_with_traceback
 
 
 # pylint: disable=missing-docstring
 class TestUtils(TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls.profiler = cProfile.Profile()
@@ -32,47 +32,59 @@ class TestUtils(TestCase):
     def tearDownClass(cls):
         stats = Stats(cls.profiler)
         stats.strip_dirs()
-        stats.sort_stats('cumtime')
+        stats.sort_stats("cumtime")
         stats.print_stats(20)
 
     def test_learner_builtin(self):
         learner_args = []
-        learner_kwargs = {'kernel_size': 1, 'padding': 0, 'maxpool_size': 1}
+        learner_kwargs = {"kernel_size": 1, "padding": 0, "maxpool_size": 1}
         for learner in (CNNClassifier, CNNRegressor):
             self.assertTrue(test_learner(learner, *learner_args, **learner_kwargs))
 
     def test_learner_synthetic(self):
-        opts = {'random_seed': 0}
-        learner_kwargs = {'kernel_size': 1, 'padding': 0, 'maxpool_size': 1, 'random_seed': 0}
+        opts = {"random_seed": 0}
+        learner_kwargs = {"kernel_size": 1, "padding": 0, "maxpool_size": 1, "random_seed": 0}
         test_data = [
-            (CNNRegressor, new_line(**opts), .95),  # Approximate a line
-            #(CNNRegressor, new_trig(**opts), .30),  # Approximate a sine curve
-            (CNNRegressor, new_poly(**opts), .85),  # Approximate a 4th deg. poly
-            (CNNClassifier, new_labels(**opts), .80),  # Correctly guess labels
-            (CNNClassifier, new_mat9(**opts), 1)]  # FIXME: Correctly guess matrix
+            (CNNRegressor, new_line(**opts), 0.95),  # Approximate a line
+            # (CNNRegressor, new_trig(**opts), .30),  # Approximate a sine curve
+            (CNNRegressor, new_poly(**opts), 0.85),  # Approximate a 4th deg. poly
+            (CNNClassifier, new_labels(**opts), 0.80),  # Correctly guess labels
+            (CNNClassifier, new_mat9(**opts), 1),
+        ]  # FIXME: Correctly guess matrix
         for learner, dataset, target_score in test_data:
             pipeline = learner(**learner_kwargs)
             history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
             self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
 
     def test_learner_datasets(self):
-        opts = {'random_seed': 0}
+        opts = {"random_seed": 0}
         test_data = [
-            (CNNRegressor, load_boston(**opts), .75),  # Boston housing dataset
-            (CNNClassifier, load_titanic(**opts), .75)]  # Titanic dataset
+            (CNNRegressor, load_boston(**opts), 0.75),  # Boston housing dataset
+            (CNNClassifier, load_titanic(**opts), 0.75),
+        ]  # Titanic dataset
 
-        opts['kernel_size'] = 3
+        opts["kernel_size"] = 3
         for learner, train_test_datasets, target_score in test_data:
             dataset, test_ds = train_test_datasets
-            pipeline = Pipeline([
-                PipelineStep(name='preprocessor', learner=StandardPreprocessor, kwargs={
-                    'continuous': dataset.continuous, 'categorical': dataset.categorical}),
-                PipelineStep(name='estimator', learner=learner, kwargs=opts)])
+            pipeline = Pipeline(
+                [
+                    PipelineStep(
+                        name="preprocessor",
+                        learner=StandardPreprocessor,
+                        kwargs={
+                            "continuous": dataset.continuous,
+                            "categorical": dataset.categorical,
+                        },
+                    ),
+                    PipelineStep(name="estimator", learner=learner, kwargs=opts),
+                ]
+            )
 
             history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
             test_score = pipeline.score(*test_ds[:])
             self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
-            print('%s\t%.3f\t%.3f' % (dataset.name, max(history.scores), test_score))
+            print("%s\t%.3f\t%.3f" % (dataset.name, max(history.scores), test_score))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     sys.exit(main())

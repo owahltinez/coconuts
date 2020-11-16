@@ -1,1 +1,1 @@
-''' Collection of classes and mixins for training estimators '''
+""" Collection of classes and mixins for training estimators """

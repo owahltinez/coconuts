@@ -1,4 +1,4 @@
-''' Test Utils Module '''
+""" Test Utils Module """
 
 import sys
 import cProfile
@@ -13,12 +13,12 @@ from coconuts.learners.linear import LinearRegressor, LogisticRegression
 
 # Show traceback for all warninngs
 from bananas.utils.misc import warn_with_traceback
+
 warnings.showwarning = warn_with_traceback
 
 
 # pylint: disable=missing-docstring
 class TestUtils(TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls.profiler = cProfile.Profile()
@@ -28,17 +28,18 @@ class TestUtils(TestCase):
     def tearDownClass(cls):
         stats = Stats(cls.profiler)
         stats.strip_dirs()
-        stats.sort_stats('cumtime')
+        stats.sort_stats("cumtime")
         stats.print_stats(20)
 
     def test_learner_reproducibility_synthetic(self):
         trials = 10
-        opts = {'random_seed': 0}
+        opts = {"random_seed": 0}
 
         test_data = [
             (LinearRegressor, new_line),  # Approximate a line
             (LinearRegressor, new_poly),  # Approximate a 4th deg. poly
-            (LogisticRegression, new_labels)]  # Correctly guess labels
+            (LogisticRegression, new_labels),
+        ]  # Correctly guess labels
 
         for learner, dataset in test_data:
             tmp = []
@@ -47,9 +48,12 @@ class TestUtils(TestCase):
             for _ in range(trials):
 
                 scores, X_tmp, y_tmp = [], [], []
+
                 def step_callback(step):
-                    for x in step.X_test: X_tmp.append(x)
-                    for y in step.y_test: y_tmp.append(y)
+                    for x in step.X_test:
+                        X_tmp.append(x)
+                    for y in step.y_test:
+                        y_tmp.append(y)
                     scores.append(step.score)
 
                 dataset_ = dataset(**opts)
@@ -67,5 +71,6 @@ class TestUtils(TestCase):
                 self.assertListEqual(y_list[0], y_list[i])
                 self.assertListEqual(scores_list[0], scores_list[i])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     sys.exit(main())
