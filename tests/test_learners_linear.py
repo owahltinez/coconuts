@@ -1,7 +1,6 @@
 """ Test Utils Module """
 
 import sys
-import time
 import cProfile
 import warnings
 from pstats import Stats
@@ -12,7 +11,6 @@ from bananas.sampledata.local import load_boston, load_titanic
 from bananas.sampledata.synthetic import new_labels, new_line, new_3x3, new_poly
 from bananas.preprocessing.standard import StandardPreprocessor
 from bananas.testing.learners import test_learner
-import numpy
 
 from coconuts.learners.linear import LinearRegressor, LogisticRegression
 
