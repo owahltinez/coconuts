@@ -14,7 +14,7 @@ from bananas.testing.learners import test_learner
 
 from coconuts.learners.linear import LinearRegressor, LogisticRegression
 
-# Show traceback for all warninngs
+# Show traceback for all warnings
 from bananas.utils.misc import warn_with_traceback
 
 warnings.showwarning = warn_with_traceback

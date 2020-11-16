@@ -10,7 +10,7 @@ from bananas.sampledata.synthetic import new_labels, new_line, new_3x3, new_poly
 
 from coconuts.learners.linear import LinearRegressor, LogisticRegression
 
-# Show traceback for all warninngs
+# Show traceback for all warnings
 from bananas.utils.misc import warn_with_traceback
 
 warnings.showwarning = warn_with_traceback

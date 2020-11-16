@@ -14,7 +14,7 @@ from bananas.preprocessing.standard import StandardPreprocessor
 
 from coconuts.learners.convolution import CNNClassifier, CNNRegressor
 
-# Show traceback for all warninngs
+# Show traceback for all warnings
 from bananas.utils.misc import warn_with_traceback
 
 warnings.showwarning = warn_with_traceback

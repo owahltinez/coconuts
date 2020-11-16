@@ -14,7 +14,7 @@ from coconuts.learners.convolution import CNNClassifier, CNNRegressor
 from coconuts.learners.linear import LogisticRegression, LinearRegressor
 from coconuts.learners.multilayer import MLPClassifier, MLPRegressor
 
-# Show traceback for all warninngs
+# Show traceback for all warnings
 from bananas.utils.misc import warn_with_traceback
 
 warnings.showwarning = warn_with_traceback
