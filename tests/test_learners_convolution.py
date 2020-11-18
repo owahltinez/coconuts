@@ -51,7 +51,7 @@ class TestUtils(TestCase):
             (CNNRegressor, new_3x3(**opts), 0.90),  # 3x3 fuzzy matrix
         ]
         for learner, dataset, target_score in test_data:
-            pipeline = learner(verbose = False, **learner_kwargs)
+            pipeline = learner(verbose=False, **learner_kwargs)
             history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
             self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
 

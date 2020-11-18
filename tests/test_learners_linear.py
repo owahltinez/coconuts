@@ -49,7 +49,7 @@ class TestUtils(TestCase):
             (LinearRegressor, new_3x3(**opts), 0.95),  # 3x3 fuzzy matrix
         ]
         for learner, dataset, target_score in test_data:
-            pipeline = learner(verbose=True, **opts)
+            pipeline = learner(verbose=False, **opts)
             history = pipeline.train(dataset.input_fn, max_score=target_score, progress=True)
             self.assertGreaterEqual(max(history.scores), target_score, dataset.name)
 
